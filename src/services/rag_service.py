@@ -18,7 +18,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter, RecursiveJs
 
 from config import (
     OPENAI_BASE_URL, OPENAI_API_KEY, MODEL_NAME,
-    EMBEDDING_MODEL, CHUNK_SIZE, CHUNK_OVERLAP, SIMILARITY_K
+    EMBEDDING_MODEL, CHUNK_SIZE, CHUNK_OVERLAP
 )
 
 
@@ -48,17 +48,17 @@ class RAGService:
         vector_store = FAISS.from_documents(documents, embeddings)
         faiss_retriever = vector_store.as_retriever(
             search_type="similarity",
-            search_kwargs={'k': SIMILARITY_K}
+            search_kwargs={'k': 6}
         )
         
         # BM25 ретривер
         bm25_retriever = BM25Retriever.from_documents(documents)
-        bm25_retriever.k = SIMILARITY_K
+        bm25_retriever.k = 2
         
         # Комбинированный ретривер
         ensemble_retriever = EnsembleRetriever(
             retrievers=[bm25_retriever, faiss_retriever],
-            weights=[0.3, 0.7]
+            weights=[0.2, 0.8]
         )
         
         # LLM
@@ -66,7 +66,7 @@ class RAGService:
             model=MODEL_NAME,
             base_url=OPENAI_BASE_URL,
             api_key=OPENAI_API_KEY,
-            temperature=0
+            temperature=0.1
         )
         
         # Промпт
@@ -138,10 +138,13 @@ class RAGService:
         
         splitter = RecursiveJsonSplitter(max_chunk_size=1000)
         json_chunks = splitter.split_json(json_data=data)
-        
+        if file_path.name == 'ai_product.json':
+            program_name = 'AI Product'
+        else:
+            program_name = 'AI'
         return splitter.create_documents(
             texts=json_chunks,
-            metadatas=[{"source": str(file_path)} for _ in json_chunks]
+            metadatas=[{"source": str(file_path), "About": f"Description of the training area, important dates and entrance tests for {program_name}"} for _ in json_chunks]
         )
     
     def _load_pdf(self, file_path: Path) -> List[Document]:
@@ -155,11 +158,14 @@ class RAGService:
             Список документов.
         """
         pages = pymupdf4llm.to_markdown(str(file_path), page_chunks=True)
-        
+        if file_path.name == 'ai_product_itmo_plan.pdf':
+            program_name = 'AI Product'
+        else:
+            program_name = 'AI'
         docs = [
             Document(
                 page["text"],
-                metadata={"page": page.get("page", i), "source": file_path.name}
+                metadata={"page": page.get("page", i), "source": file_path.name, "About": f"The curriculum of the program {program_name}"}
             )
             for i, page in enumerate(pages)
         ]
